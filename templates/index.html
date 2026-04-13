@@ -233,6 +233,73 @@
     .cookie-btn.danger:hover { background: var(--error-bg); }
     #cookieFileInput { display: none; }
 
+    /* ══════════ OAUTH PANEL ══════════ */
+    .oauth-bar {
+      margin-top: 10px;
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.72rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .oauth-bar.authed {
+      border-color: rgba(52,211,153,0.3);
+      background: var(--success-bg);
+    }
+    .oauth-bar.waiting {
+      border-color: rgba(251,191,36,0.3);
+      background: var(--warning-bg);
+    }
+    .oauth-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .oauth-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--fg3);
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .oauth-bar.authed .oauth-dot { background: var(--success); }
+    .oauth-bar.waiting .oauth-dot { background: var(--warning); animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .oauth-label { flex: 1; font-weight: 500; color: var(--fg3); }
+    .oauth-bar.authed .oauth-label { color: var(--success); }
+    .oauth-bar.waiting .oauth-label { color: var(--warning); }
+
+    .oauth-code-box {
+      margin-top: 10px;
+      padding: 12px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      display: none;
+    }
+    .oauth-code-box.visible { display: block; }
+    .oauth-device-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--warning);
+      text-align: center;
+      margin: 6px 0 10px;
+    }
+    .oauth-instruction {
+      font-size: 0.72rem;
+      color: var(--fg2);
+      text-align: center;
+      line-height: 1.6;
+    }
+    .oauth-instruction a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .oauth-instruction a:hover { text-decoration: underline; }
+
     /* ══════════ CARDS ══════════ */
     .cards { margin-top: 22px; }
 
@@ -513,6 +580,23 @@
     </div>
     <input type="file" id="cookieFileInput" accept=".txt,text/plain" onchange="uploadCookies(this)">
 
+    <!-- ── OAuth bar ── -->
+    <div class="oauth-bar" id="oauthBar">
+      <div class="oauth-top">
+        <div class="oauth-dot" id="oauthDot"></div>
+        <span class="oauth-label" id="oauthLabel">YouTube: not signed in</span>
+        <button class="cookie-btn" id="oauthBtn" onclick="startOAuth()">Connect Google Account</button>
+        <button class="cookie-btn danger" id="revokeBtn" style="display:none" onclick="revokeOAuth()">Revoke</button>
+      </div>
+      <div class="oauth-code-box" id="oauthCodeBox">
+        <div class="oauth-instruction">
+          Open <a href="https://www.google.com/device" target="_blank">google.com/device</a> on any device and enter:
+        </div>
+        <div class="oauth-device-code" id="oauthCode">····-····</div>
+        <div class="oauth-instruction">Sign in with your Google account — then wait a moment.</div>
+      </div>
+    </div>
+
     <!-- ── Cards ── -->
     <div id="cards" class="cards"></div>
 
@@ -580,6 +664,77 @@
     async function deleteCookies() {
       await fetch('/api/delete-cookies', { method: 'POST' });
       refreshCookiesBar();
+    }
+
+    // ── OAuth ──
+    let _oauthPoll = null;
+
+    async function refreshOAuthBar() {
+      try {
+        const r = await fetch('/api/oauth/status');
+        const d = await r.json();
+        const bar    = document.getElementById('oauthBar');
+        const label  = document.getElementById('oauthLabel');
+        const btn    = document.getElementById('oauthBtn');
+        const revoke = document.getElementById('revokeBtn');
+        const codeBox= document.getElementById('oauthCodeBox');
+        const codeEl = document.getElementById('oauthCode');
+
+        if (d.cached || d.status === 'done') {
+          bar.className   = 'oauth-bar authed';
+          label.textContent = 'YouTube: signed in via Google account';
+          btn.style.display = 'none';
+          revoke.style.display = '';
+          codeBox.classList.remove('visible');
+          if (_oauthPoll) { clearInterval(_oauthPoll); _oauthPoll = null; }
+        } else if (d.status === 'waiting_user') {
+          bar.className = 'oauth-bar waiting';
+          label.textContent = 'Waiting for you to enter the code…';
+          btn.disabled = true;
+          btn.textContent = 'Waiting…';
+          revoke.style.display = 'none';
+          if (d.code) { codeEl.textContent = d.code; codeBox.classList.add('visible'); }
+        } else if (d.status === 'pending') {
+          bar.className = 'oauth-bar waiting';
+          label.textContent = 'Starting authentication…';
+          btn.disabled = true;
+          btn.textContent = 'Starting…';
+        } else if (d.status === 'error') {
+          bar.className = 'oauth-bar';
+          label.textContent = 'Auth error: ' + (d.error || 'unknown');
+          btn.disabled = false;
+          btn.textContent = 'Retry';
+          codeBox.classList.remove('visible');
+          if (_oauthPoll) { clearInterval(_oauthPoll); _oauthPoll = null; }
+        } else {
+          bar.className = 'oauth-bar';
+          label.textContent = 'YouTube: not signed in — connect to bypass bot detection';
+          btn.disabled = false;
+          btn.textContent = 'Connect Google Account';
+          btn.style.display = '';
+          revoke.style.display = 'none';
+          codeBox.classList.remove('visible');
+        }
+      } catch {}
+    }
+    refreshOAuthBar();
+
+    async function startOAuth() {
+      const btn = document.getElementById('oauthBtn');
+      btn.disabled = true;
+      btn.textContent = 'Starting…';
+      try {
+        await fetch('/api/oauth/start', { method: 'POST' });
+        _oauthPoll = setInterval(refreshOAuthBar, 2000);
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Connect Google Account';
+      }
+    }
+
+    async function revokeOAuth() {
+      await fetch('/api/oauth/revoke', { method: 'POST' });
+      refreshOAuthBar();
     }
 
     // ── Format toggle ──
