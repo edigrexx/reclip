@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReClip — Media Downloader</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:          #080b14;
+      --bg2:         #0d1220;
+      --surface:     rgba(255,255,255,0.04);
+      --surface2:    rgba(255,255,255,0.07);
+      --border:      rgba(255,255,255,0.08);
+      --border-hi:   rgba(255,255,255,0.14);
+      --focus-ring:  rgba(129,140,248,0.45);
+      --fg:          #e2e8f0;
+      --fg2:         #94a3b8;
+      --fg3:         #475569;
+      --accent:      #818cf8;
+      --accent2:     #38bdf8;
+      --grad:        linear-gradient(135deg,#818cf8 0%,#38bdf8 100%);
+      --grad-warm:   linear-gradient(135deg,#f472b6 0%,#818cf8 100%);
+      --success:     #34d399;
+      --success-bg:  rgba(52,211,153,0.12);
+      --error:       #f87171;
+      --error-bg:    rgba(248,113,113,0.08);
+      --warning:     #fbbf24;
+      --warning-bg:  rgba(251,191,36,0.08);
+      --radius:      12px;
+      --radius-lg:   18px;
+    }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* — background glow — */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 900px;
+      height: 700px;
+      background:
+        radial-gradient(ellipse 60% 50% at 40% 50%, rgba(99,102,241,0.13) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 60% 50%, rgba(56,189,248,0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 64px 24px 100px;
+    }
+
+    /* ══════════ HEADER ══════════ */
+    .header {
+      margin-bottom: 44px;
+    }
+
+    .logo {
+      font-size: 3.2rem;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .logo-re { color: var(--fg); }
+    .logo-clip {
+      background: var(--grad);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--fg3);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ══════════ INPUT ══════════ */
+    .url-wrapper {
+      position: relative;
+      margin-bottom: 8px;
+    }
+
+    .url-input {
+      width: 100%;
+      padding: 15px 20px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--fg);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.83rem;
+      outline: none;
+      resize: none;
+      min-height: 54px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .url-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .url-input::placeholder { color: var(--fg3); }
+
+    .input-hint {
+      font-size: 0.7rem;
+      color: var(--fg3);
+      margin-bottom: 14px;
+    }
+
+    /* ══════════ CONTROLS ══════════ */
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 0;
+    }
+
+    .segment {
+      display: flex;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .seg-btn {
+      padding: 9px 20px;
+      border: none;
+      background: transparent;
+      color: var(--fg3);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.73rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .seg-btn.active {
+      background: var(--grad);
+      color: #fff;
+    }
+    .seg-btn:not(.active):hover { color: var(--fg2); background: var(--surface2); }
+
+    .fetch-btn {
+      flex: 1;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 10px;
+      background: var(--grad);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: filter 0.2s, transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 4px 20px rgba(129,140,248,0.28);
+    }
+    .fetch-btn:hover:not(:disabled) {
+      filter: brightness(1.12);
+      box-shadow: 0 4px 28px rgba(129,140,248,0.42);
+    }
+    .fetch-btn:active:not(:disabled) { transform: scale(0.98); }
+    .fetch-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+    /* ══════════ COOKIES PANEL ══════════ */
+    .cookies-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.72rem;
+      color: var(--fg3);
+      transition: border-color 0.2s;
+    }
+    .cookies-bar.has-cookies {
+      border-color: rgba(52,211,153,0.3);
+      background: var(--success-bg);
+    }
+    .cookies-bar.has-cookies .cookie-label { color: var(--success); }
+    .cookie-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--fg3);
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .cookies-bar.has-cookies .cookie-dot { background: var(--success); }
+    .cookie-label { flex: 1; font-weight: 500; }
+    .cookie-btn {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      background: transparent;
+      color: var(--fg2);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .cookie-btn:hover { border-color: var(--border-hi); color: var(--fg); }
+    .cookie-btn.danger { border-color: rgba(248,113,113,0.3); color: var(--error); }
+    .cookie-btn.danger:hover { background: var(--error-bg); }
+    #cookieFileInput { display: none; }
+
+    /* ══════════ CARDS ══════════ */
+    .cards { margin-top: 22px; }
+
+    .card {
+      display: flex;
+      gap: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+      padding: 14px;
+      margin-bottom: 10px;
+      animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover { border-color: var(--border-hi); }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* — thumbnail — */
+    .card-thumb {
+      width: 112px;
+      min-width: 112px;
+      height: 74px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.06);
+      flex-shrink: 0;
+    }
+    .card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .no-thumb {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--fg3);
+    }
+    .no-thumb svg { width: 26px; height: 26px; }
+
+    /* shimmer skeleton */
+    .card-thumb.loading {
+      background: linear-gradient(90deg,
+        rgba(255,255,255,0.04) 25%,
+        rgba(255,255,255,0.09) 50%,
+        rgba(255,255,255,0.04) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+    }
+    .skeleton-line {
+      height: 10px;
+      border-radius: 5px;
+      background: linear-gradient(90deg,
+        rgba(255,255,255,0.05) 25%,
+        rgba(255,255,255,0.1) 50%,
+        rgba(255,255,255,0.05) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      margin-bottom: 7px;
+    }
+    .skeleton-line.short { width: 38%; height: 8px; }
+    .skeleton-line.medium { width: 78%; }
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* — card body — */
+    .card-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 0.875rem;
+      line-height: 1.35;
+      color: var(--fg);
+      margin-bottom: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-meta {
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--fg3);
+      margin-bottom: 10px;
+      letter-spacing: 0.02em;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* — download button — */
+    .card-dl-btn {
+      padding: 5px 14px;
+      border: none;
+      border-radius: 7px;
+      background: var(--grad);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: filter 0.15s, box-shadow 0.15s;
+      box-shadow: 0 2px 10px rgba(129,140,248,0.22);
+      flex-shrink: 0;
+    }
+    .card-dl-btn:hover:not(:disabled) { filter: brightness(1.12); }
+    .card-dl-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+    .card-dl-btn.done  { background: linear-gradient(135deg,#34d399,#10b981); box-shadow: 0 2px 10px rgba(52,211,153,0.22); }
+    .card-dl-btn.retry { background: linear-gradient(135deg,#f87171,#ef4444); box-shadow: 0 2px 10px rgba(248,113,113,0.22); }
+
+    .card-status {
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--fg3);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+    .card-status.downloading { color: var(--accent); }
+    .card-status.done { color: var(--success); }
+    .card-status.error { color: var(--error); }
+
+    /* — quality chips — */
+    .q-chip {
+      padding: 3px 9px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--fg3);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.63rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .q-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(129,140,248,0.1); }
+    .q-chip:hover:not(.active) { border-color: var(--border-hi); color: var(--fg2); }
+
+    /* — error card — */
+    .card.card-error {
+      border-color: rgba(248,113,113,0.22);
+      background: var(--error-bg);
+    }
+    .card-error-icon {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(248,113,113,0.12);
+      color: var(--error);
+      border-radius: 8px;
+    }
+    .card-error-icon svg { width: 22px; height: 22px; }
+    .card-error-msg  { font-size: 0.72rem; color: var(--error); margin-top: 3px; line-height: 1.4; }
+    .card-error-url  { font-size: 0.63rem; color: var(--fg3); word-break: break-all; margin-top: 3px; }
+
+    /* bot-detection hint inside error card */
+    .bot-hint {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: var(--warning-bg);
+      border: 1px solid rgba(251,191,36,0.2);
+      border-radius: 8px;
+      font-size: 0.68rem;
+      color: var(--warning);
+      line-height: 1.5;
+    }
+    .bot-hint strong { color: #fde68a; }
+
+    /* ══════════ DOWNLOAD ALL ══════════ */
+    .dl-all-bar { margin-top: 12px; }
+    .dl-all-btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: var(--radius);
+      background: var(--grad);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: filter 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(129,140,248,0.28);
+    }
+    .dl-all-btn:hover:not(:disabled) { filter: brightness(1.1); box-shadow: 0 4px 32px rgba(129,140,248,0.42); }
+    .dl-all-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: none; box-shadow: none; }
+
+    /* ══════════ SPINNER ══════════ */
+    .spin {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ══════════ FOOTER ══════════ */
+    .footer {
+      margin-top: 56px;
+      text-align: center;
+    }
+    .footer-platforms {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 4px 10px;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: var(--fg3);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .footer-platforms span { opacity: 0.5; transition: opacity 0.2s; cursor: default; }
+    .footer-platforms span:hover { opacity: 0.9; }
+    .footer-sep { color: var(--fg3); opacity: 0.2; }
+
+    /* ══════════ MOBILE ══════════ */
+    @media (max-width: 520px) {
+      .logo { font-size: 2.6rem; }
+      .page { padding: 40px 16px 80px; }
+      .card { flex-direction: column; gap: 10px; }
+      .card-thumb { width: 100%; min-width: unset; height: 150px; }
+      .card-title { white-space: normal; }
+      .controls { flex-wrap: wrap; }
+      .fetch-btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- ── Header ── -->
+    <div class="header">
+      <div class="logo">
+        <span class="logo-re">Re</span><span class="logo-clip">Clip</span>
+      </div>
+      <div class="tagline">Free media downloader</div>
+    </div>
+
+    <!-- ── URL input ── -->
+    <textarea id="urls" class="url-input" placeholder="Paste one or more URLs…" rows="2"></textarea>
+    <p class="input-hint">Separate multiple links with spaces, commas, or newlines.</p>
+
+    <!-- ── Controls ── -->
+    <div class="controls">
+      <div class="segment">
+        <button class="seg-btn active" data-format="video" onclick="setFormat(this)">MP4</button>
+        <button class="seg-btn" data-format="audio" onclick="setFormat(this)">MP3</button>
+      </div>
+      <button class="fetch-btn" id="goBtn" onclick="go()">Fetch</button>
+    </div>
+
+    <!-- ── Cookies bar ── -->
+    <div class="cookies-bar" id="cookiesBar">
+      <div class="cookie-dot" id="cookieDot"></div>
+      <span class="cookie-label" id="cookieLabel">No cookies — using fallback clients</span>
+      <button class="cookie-btn" onclick="document.getElementById('cookieFileInput').click()">Upload cookies.txt</button>
+      <button class="cookie-btn danger" id="delCookieBtn" style="display:none" onclick="deleteCookies()">Remove</button>
+    </div>
+    <input type="file" id="cookieFileInput" accept=".txt,text/plain" onchange="uploadCookies(this)">
+
+    <!-- ── Cards ── -->
+    <div id="cards" class="cards"></div>
+
+    <!-- ── Footer ── -->
+    <div class="footer">
+      <div class="footer-platforms">
+        <span>YouTube</span><span class="footer-sep">·</span>
+        <span>TikTok</span><span class="footer-sep">·</span>
+        <span>Instagram</span><span class="footer-sep">·</span>
+        <span>Twitter/X</span><span class="footer-sep">·</span>
+        <span>Reddit</span><span class="footer-sep">·</span>
+        <span>Facebook</span><span class="footer-sep">·</span>
+        <span>Vimeo</span><span class="footer-sep">·</span>
+        <span>Twitch</span><span class="footer-sep">·</span>
+        <span>SoundCloud</span><span class="footer-sep">·</span>
+        <span>1000+ more</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentFormat = 'video';
+    let cardData = [];
+
+    // ── Cookies status ──
+    async function refreshCookiesBar() {
+      try {
+        const r = await fetch('/api/cookies-status');
+        const d = await r.json();
+        const bar   = document.getElementById('cookiesBar');
+        const dot   = document.getElementById('cookieDot');
+        const label = document.getElementById('cookieLabel');
+        const del   = document.getElementById('delCookieBtn');
+        if (d.has_cookies) {
+          bar.classList.add('has-cookies');
+          label.textContent = d.source === 'file'
+            ? 'cookies.txt loaded — YouTube bot-check bypassed'
+            : `Using cookies from browser (${d.source})`;
+          del.style.display = d.source === 'file' ? '' : 'none';
+        } else {
+          bar.classList.remove('has-cookies');
+          label.textContent = 'No cookies — using fallback player clients';
+          del.style.display = 'none';
+        }
+      } catch {}
+    }
+    refreshCookiesBar();
+
+    async function uploadCookies(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const r = await fetch('/api/upload-cookies', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (d.ok) refreshCookiesBar();
+        else alert('Upload failed: ' + (d.error || 'unknown error'));
+      } catch (e) {
+        alert('Upload failed: ' + e.message);
+      }
+      input.value = '';
+    }
+
+    async function deleteCookies() {
+      await fetch('/api/delete-cookies', { method: 'POST' });
+      refreshCookiesBar();
+    }
+
+    // ── Format toggle ──
+    function setFormat(btn) {
+      document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFormat = btn.dataset.format;
+    }
+
+    // ── URL parsing ──
+    function parseUrls(text) {
+      return [...new Set(text.split(/[\s,]+/).map(u => u.trim()).filter(u => u.startsWith('http')))];
+    }
+
+    function fmtDur(s) {
+      if (!s) return '';
+      const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+      return `${m}:${sec.toString().padStart(2,'0')}`;
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function isBotError(err) {
+      return /sign in to confirm|bot|not a bot/i.test(err);
+    }
+
+    function friendlyError(err) {
+      if (!err) return 'Unknown error';
+      if (/Unsupported URL/i.test(err))           return 'This URL is not supported';
+      if (/Video unavailable|unavailable/i.test(err)) return 'Video is unavailable or private';
+      if (/Private video/i.test(err))             return 'This video is private';
+      if (/HTTP Error 403/i.test(err))            return 'Access denied by the platform';
+      if (/HTTP Error 404/i.test(err))            return 'Video not found';
+      if (/copyright/i.test(err))                 return 'Blocked due to copyright';
+      if (/geo/i.test(err))                       return 'Not available in your region';
+      if (/timed out/i.test(err))                 return 'Request timed out — try again';
+      if (isBotError(err))                        return 'YouTube bot detection triggered';
+      return err.length > 90 ? err.slice(0, 90) + '…' : err;
+    }
+
+    document.getElementById('urls').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); }
+    });
+
+    // ── Main fetch flow ──
+    async function go() {
+      const urls = parseUrls(document.getElementById('urls').value);
+      if (!urls.length) return;
+
+      const btn = document.getElementById('goBtn');
+      const container = document.getElementById('cards');
+      btn.disabled = true;
+      btn.textContent = 'Loading…';
+      container.innerHTML = '';
+      cardData = [];
+
+      for (let i = 0; i < urls.length; i++) {
+        const url = urls[i];
+        const idx = cardData.length;
+        cardData.push({ url, status: 'loading' });
+        renderCard(idx);
+
+        try {
+          const res = await fetch('/api/info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url }),
+          });
+          const data = await res.json();
+          if (data.error) {
+            cardData[idx] = { ...cardData[idx], status: 'info-error', error: data.error };
+          } else {
+            cardData[idx] = {
+              ...cardData[idx],
+              status: 'ready',
+              title: data.title || '',
+              thumbnail: data.thumbnail || '',
+              duration: data.duration,
+              uploader: data.uploader || '',
+              formats: data.formats || [],
+              selectedFormatId: data.formats?.[0]?.id || null,
+            };
+          }
+        } catch (err) {
+          cardData[idx] = { ...cardData[idx], status: 'info-error', error: err.message };
+        }
+        renderCard(idx);
+      }
+
+      if (cardData.filter(c => c.status === 'ready').length > 1) renderDownloadAll();
+
+      btn.disabled = false;
+      btn.textContent = 'Fetch';
+    }
+
+    // ── Render card ──
+    function renderCard(idx) {
+      const c = cardData[idx];
+      let el = document.getElementById(`card-${idx}`);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = `card-${idx}`;
+        el.className = 'card';
+        document.getElementById('cards').appendChild(el);
+      }
+
+      // Skeleton
+      if (c.status === 'loading') {
+        el.className = 'card';
+        el.innerHTML = `
+          <div class="card-thumb loading"></div>
+          <div class="card-body">
+            <div class="skeleton-line medium"></div>
+            <div class="skeleton-line short"></div>
+          </div>`;
+        return;
+      }
+
+      // Info-error
+      if (c.status === 'info-error') {
+        el.className = 'card card-error';
+        const botError = isBotError(c.error || '');
+        const botHint = botError ? `
+          <div class="bot-hint">
+            <strong>YouTube bot detection:</strong> upload a <code>cookies.txt</code> file from your logged-in browser
+            using an extension like <em>Get cookies.txt LOCALLY</em>. The fallback player clients (tv_embedded, ios)
+            may also work — just try again.
+          </div>` : '';
+        el.innerHTML = `
+          <div class="card-thumb">
+            <div class="card-error-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="card-title" style="color:var(--error)">Could not fetch video</div>
+            <div class="card-error-msg">${esc(friendlyError(c.error || ''))}</div>
+            <div class="card-error-url">${esc(c.url)}</div>
+            ${botHint}
+          </div>`;
+        return;
+      }
+
+      // Ready / downloading / done / error
+      el.className = 'card';
+      const isAudio = currentFormat === 'audio';
+
+      let thumbHtml;
+      if (isAudio) {
+        thumbHtml = `<div class="no-thumb" style="color:var(--accent)">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`;
+      } else if (c.thumbnail) {
+        thumbHtml = `<img src="${c.thumbnail}" alt="">`;
+      } else {
+        thumbHtml = `<div class="no-thumb">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="8" cy="8" r="1.5"/>
+            <path d="m21 15-5-5L5 21"/></svg></div>`;
+      }
+
+      let qualityChips = '';
+      if (!isAudio && c.formats && c.formats.length > 1) {
+        qualityChips = c.formats.map(f =>
+          `<button class="q-chip${f.id === c.selectedFormatId ? ' active' : ''}" onclick="pickFormat(${idx}, '${f.id}')">${f.label}</button>`
+        ).join('');
+      }
+
+      let actionHtml = '';
+      if (c.status === 'ready') {
+        actionHtml = `<button class="card-dl-btn" onclick="dlCard(${idx})">Download</button>${qualityChips}`;
+      } else if (c.status === 'downloading') {
+        actionHtml = `<span class="card-status downloading"><span class="spin"></span> Downloading…</span>`;
+      } else if (c.status === 'done') {
+        actionHtml = `<button class="card-dl-btn done" onclick="saveCard(${idx})">Save</button>
+          <span class="card-status done">✓ ${esc(c.filename || '')}</span>`;
+      } else if (c.status === 'error') {
+        actionHtml = `<button class="card-dl-btn retry" onclick="resetCard(${idx})">Retry</button>
+          <span class="card-status error">${esc(friendlyError(c.error || 'Download failed'))}</span>`;
+      }
+
+      el.innerHTML = `
+        <div class="card-thumb">${thumbHtml}</div>
+        <div class="card-body">
+          <div class="card-title">${esc(c.title || 'Untitled')}</div>
+          <div class="card-meta">${esc(c.uploader)}${c.duration ? ' · ' + fmtDur(c.duration) : ''}</div>
+          <div class="card-actions">${actionHtml}</div>
+        </div>`;
+    }
+
+    function renderDownloadAll() {
+      const existing = document.getElementById('dl-all-bar');
+      if (existing) existing.remove();
+      const bar = document.createElement('div');
+      bar.id = 'dl-all-bar';
+      bar.className = 'dl-all-bar';
+      bar.innerHTML = `<button class="dl-all-btn" onclick="dlAll()">Download All</button>`;
+      document.getElementById('cards').appendChild(bar);
+    }
+
+    function pickFormat(idx, formatId) {
+      cardData[idx].selectedFormatId = formatId;
+      renderCard(idx);
+    }
+
+    function resetCard(idx) {
+      cardData[idx].status = 'ready';
+      cardData[idx].error = null;
+      renderCard(idx);
+    }
+
+    async function dlCard(idx) {
+      const c = cardData[idx];
+      c.status = 'downloading';
+      c.error = null;
+      renderCard(idx);
+
+      try {
+        const res = await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: c.url,
+            format: currentFormat,
+            format_id: c.selectedFormatId,
+            title: c.title || '',
+          }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          c.status = 'error'; c.error = data.error;
+          renderCard(idx); return;
+        }
+        c.jobId = data.job_id;
+        pollCard(idx);
+      } catch (err) {
+        c.status = 'error'; c.error = err.message;
+        renderCard(idx);
+      }
+    }
+
+    function pollCard(idx) {
+      const c = cardData[idx];
+      const iv = setInterval(async () => {
+        try {
+          const res  = await fetch(`/api/status/${c.jobId}`);
+          const data = await res.json();
+          if (data.status === 'done') {
+            clearInterval(iv);
+            c.status = 'done'; c.filename = data.filename;
+            renderCard(idx); saveCard(idx);
+          } else if (data.status === 'error') {
+            clearInterval(iv);
+            c.status = 'error'; c.error = data.error;
+            renderCard(idx);
+          }
+        } catch {
+          clearInterval(iv);
+          c.status = 'error'; c.error = 'Lost connection to server';
+          renderCard(idx);
+        }
+      }, 1000);
+    }
+
+    function saveCard(idx) {
+      const c = cardData[idx];
+      if (!c.jobId) return;
+      const a = document.createElement('a');
+      a.href = `/api/file/${c.jobId}`;
+      a.download = c.filename || '';
+      a.click();
+    }
+
+    async function dlAll() {
+      const btn = document.querySelector('.dl-all-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Downloading…'; }
+      for (let i = 0; i < cardData.length; i++) {
+        if (cardData[i].status === 'ready') await dlCard(i);
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Download All'; }
+    }
+  </script>
+</body>
+</html>
