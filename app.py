@@ -21,13 +21,19 @@ COOKIES_BROWSER = os.environ.get("COOKIES_BROWSER", "").strip()
 def anti_bot_args():
     """Return yt-dlp args that bypass YouTube bot-detection.
 
-    Priority:
-    1. COOKIES_BROWSER env var  → extract cookies from a local browser
-    2. cookies.txt on disk      → use a Netscape-format cookie file
-    3. Fallback                 → use tv_embedded + ios player clients
-       (these clients are subject to looser bot-checks than the web client)
+    Player client order matters:
+    - web        → triggers the bgutil PO-token provider (best bypass when pot-provider is running)
+    - tv_embedded → no PO token needed, lighter bot-checks
+    - ios         → mobile client, usually no bot-check
+    - mweb        → mobile web, extra fallback
+
+    Cookies are used on top of the above if available.
     """
-    args = ["--extractor-args", "youtube:player_client=tv_embedded,ios"]
+    args = [
+        # web client triggers the bgutil PO-token provider (yt-dlp-get-pot plugin)
+        # tv_embedded / ios / mweb are lighter clients used as fallbacks
+        "--extractor-args", "youtube:player_client=web,tv_embedded,ios,mweb",
+    ]
     if COOKIES_BROWSER:
         args += ["--cookies-from-browser", COOKIES_BROWSER]
     elif os.path.exists(COOKIES_FILE):

@@ -10,7 +10,9 @@ services:
     volumes:
       - reclip-data:/app/data
     environment:
+      # Both names used across different versions of the bgutil provider package
       - GETPOT_BGUTIL_BASEURL=http://pot-provider:4416
+      - BGUTIL_YTDLP_POT_SERVER_URL=http://pot-provider:4416
     depends_on:
       - pot-provider
 
