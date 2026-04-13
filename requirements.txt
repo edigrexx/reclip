@@ -1,3 +1,5 @@
 flask
 yt-dlp
 gunicorn
+yt-dlp-get-pot
+bgutil-ytdlp-pot-provider
