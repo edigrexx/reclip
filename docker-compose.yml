@@ -7,8 +7,6 @@ services:
   reclip:
     build: .
     restart: unless-stopped
-    ports:
-      - "${PORT:-8000}:8000"
     volumes:
       - reclip-data:/app/data
     environment:
