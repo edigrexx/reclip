@@ -112,7 +112,8 @@ def _run_oauth():
     with _oauth_lock:
         _oauth.update({"status": "pending", "code": None, "url": None, "error": None})
 
-    # Use a throwaway video just to trigger the auth flow
+    # Use a throwaway video just to trigger the auth flow.
+    # Requires the yt-dlp-youtube-oauth2 plugin (in requirements.txt).
     cmd = [
         "yt-dlp",
         "--username", "oauth2", "--password", "",
@@ -127,29 +128,36 @@ def _run_oauth():
             text=True, bufsize=1
         )
 
+        stderr_lines = []
         for line in proc.stderr:
             line = line.strip()
+            if line:
+                stderr_lines.append(line)
             # yt-dlp prints something like:
             # "Please open https://www.google.com/device in your browser and enter: XXXX-XXXX"
             code_m = re.search(r'\b([A-Z0-9]{4}-[A-Z0-9]{4})\b', line)
-            url_m  = re.search(r'(https://www\.google\.com/device)', line)
             if code_m:
                 with _oauth_lock:
                     _oauth["code"] = code_m.group(1)
                     _oauth["url"]  = "https://www.google.com/device"
                     _oauth["status"] = "waiting_user"
-            if "Token has been written" in line or "Saving token" in line:
+            if "Token has been written" in line or "Saving token" in line or "oauth2_token" in line:
                 with _oauth_lock:
                     _oauth["status"] = "done"
 
         proc.wait(timeout=300)
 
         with _oauth_lock:
-            if proc.returncode == 0:
+            if proc.returncode == 0 or _oauth["status"] == "done":
                 _oauth["status"] = "done"
             elif _oauth["status"] not in ("done",):
                 _oauth["status"] = "error"
-                _oauth["error"] = "Authentication failed or timed out"
+                # Surface the actual yt-dlp error instead of a generic message
+                last_error = next(
+                    (l for l in reversed(stderr_lines) if "ERROR" in l or "error" in l.lower()),
+                    stderr_lines[-1] if stderr_lines else "Authentication failed or timed out"
+                )
+                _oauth["error"] = last_error
     except Exception as e:
         with _oauth_lock:
             _oauth["status"] = "error"

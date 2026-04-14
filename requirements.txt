@@ -3,3 +3,4 @@ yt-dlp
 gunicorn
 yt-dlp-get-pot
 bgutil-ytdlp-pot-provider
+yt-dlp-youtube-oauth2
